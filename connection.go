@@ -15,7 +15,11 @@
 
 package quickfix
 
-import "io"
+import (
+	"bytes"
+	"io"
+	"time"
+)
 
 func writeLoop(connection io.Writer, messageOut chan []byte, log Log) {
 	for {
@@ -26,6 +30,43 @@ func writeLoop(connection io.Writer, messageOut chan []byte, log Log) {
 
 		if _, err := connection.Write(msg); err != nil {
 			log.OnEvent(err.Error())
+		}
+	}
+}
+
+func batchWriteLoop(connection io.Writer, messageOut chan []byte, log Log) {
+	maxBatchSize := 100
+	maxBatchDuration := 25 * time.Millisecond
+	tick := time.NewTicker(maxBatchDuration)
+	newline := []byte("\n")
+
+	for {
+		tick.Reset(maxBatchDuration)
+		messages := make([][]byte, 0, maxBatchSize)
+	innerLoop:
+
+		for {
+			select {
+			case msg, ok := <-messageOut:
+				if !ok {
+					break innerLoop
+				}
+
+				messages = append(messages, msg)
+
+				if len(messages) >= maxBatchSize {
+					break innerLoop
+				}
+
+			case <-tick.C:
+				break innerLoop
+			}
+		}
+
+		if len(messages) > 0 {
+			if _, err := connection.Write(bytes.Join(messages, newline)); err != nil {
+				log.OnEvent(err.Error())
+			}
 		}
 	}
 }
