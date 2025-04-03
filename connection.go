@@ -18,6 +18,7 @@ package quickfix
 import (
 	"bytes"
 	"io"
+	"regexp"
 	"time"
 )
 
@@ -35,26 +36,32 @@ func writeLoop(connection io.Writer, messageOut chan []byte, log Log) {
 }
 
 func batchWriteLoop(connection io.Writer, messageOut chan []byte, log Log) {
-	maxBatchSize := 100
-	maxBatchDuration := 25 * time.Millisecond
+	bufferSize := 8 * 1024        // 8 kB
+	bufferReadyToSend := 7 * 1024 // 7 kB
+	buffer := bytes.NewBuffer(make([]byte, 0, bufferSize))
+	maxBatchDuration := 100 * time.Millisecond
 	tick := time.NewTicker(maxBatchDuration)
-	newline := []byte("\n")
+	var channelClosed bool
 
 	for {
 		tick.Reset(maxBatchDuration)
-		messages := make([][]byte, 0, maxBatchSize)
-	innerLoop:
+		buffer.Reset()
 
+	innerLoop:
 		for {
 			select {
 			case msg, ok := <-messageOut:
 				if !ok {
-					break innerLoop
+					return
 				}
 
-				messages = append(messages, msg)
+				str := string(msg)
+				_ = str
+				if _, err := buffer.Write(msg); err != nil {
+					log.OnEvent(err.Error())
+				}
 
-				if len(messages) >= maxBatchSize {
+				if buffer.Len() >= bufferReadyToSend || containsAdminMessageTypeBytes(msg) {
 					break innerLoop
 				}
 
@@ -63,12 +70,23 @@ func batchWriteLoop(connection io.Writer, messageOut chan []byte, log Log) {
 			}
 		}
 
-		if len(messages) > 0 {
-			if _, err := connection.Write(bytes.Join(messages, newline)); err != nil {
+		if buffer.Len() > 0 {
+			if _, err := io.Copy(connection, buffer); err != nil {
 				log.OnEvent(err.Error())
 			}
 		}
+
+		if channelClosed {
+			return
+		}
 	}
+}
+
+// adminRE checks for messageType Heartbeat (0), Logon (A), TestRequest (1), ResendRequest (2), Reject (3), SequenceReset (4), Logout (5)
+var adminRE = regexp.MustCompile("\x0135=[0A1-5]\x01")
+
+func containsAdminMessageTypeBytes(msg []byte) bool {
+	return adminRE.Match(msg)
 }
 
 func readLoop(parser *parser, msgIn chan fixIn, log Log) {
