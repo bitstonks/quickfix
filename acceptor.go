@@ -363,7 +363,11 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		readLoop(parser, msgIn, a.globalLog)
 	}()
 
-	writeLoop(netConn, msgOut, a.globalLog)
+	if d, err := a.settings.globalSettings.DurationSetting("BatchDuration"); err != nil && d != 0 {
+		batchWriteLoop(netConn, msgOut, a.globalLog)
+	} else {
+		writeLoop(netConn, msgOut, a.globalLog)
+	}
 }
 
 func (a *Acceptor) dynamicSessionsLoop() {

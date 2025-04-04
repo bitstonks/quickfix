@@ -613,6 +613,16 @@ const (
 	// Valid Values:
 	//  - Any string
 	ProxyPassword string = "ProxyPassword"
+
+	// BatchDuration enabled batching of writes when set to non-zero value.
+	//
+	// Required: No
+	//
+	// Default: 0
+	//
+	// ValidValues:
+	//  - Duration string
+	BatchDuration string = "BatchDuration"
 )
 
 const (
