@@ -240,6 +240,20 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		}
 	}()
 
+	if tcpConn, ok := netConn.(*net.TCPConn); ok {
+		if b, err := a.settings.globalSettings.BoolSetting(config.SetNoDelay); err == nil && b {
+			tcpConn.SetNoDelay(true)
+		}
+
+		if n, err := a.settings.globalSettings.IntSetting(config.ConnReadBuffer); err == nil && n > 0 {
+			tcpConn.SetReadBuffer(n)
+		}
+
+		if n, err := a.settings.globalSettings.IntSetting(config.ConnWriteBuffer); err == nil && n > 0 {
+			tcpConn.SetWriteBuffer(n)
+		}
+	}
+
 	reader := bufio.NewReader(netConn)
 	parser := newParser(reader)
 
@@ -363,8 +377,12 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		readLoop(parser, msgIn, a.globalLog)
 	}()
 
-	if d, err := a.settings.globalSettings.DurationSetting("BatchDuration"); err != nil && d != 0 {
-		batchWriteLoop(netConn, msgOut, a.globalLog)
+	if d, err := a.settings.globalSettings.DurationSetting(config.BatchDuration); err == nil && d != 0 {
+		maxSize := 8192
+		if cfgMaxSize, err := a.settings.globalSettings.IntSetting(config.BatchMaxSize); err == nil && cfgMaxSize > 0 {
+			maxSize = cfgMaxSize
+		}
+		batchWriteLoop(netConn, msgOut, a.globalLog, d, maxSize)
 	} else {
 		writeLoop(netConn, msgOut, a.globalLog)
 	}

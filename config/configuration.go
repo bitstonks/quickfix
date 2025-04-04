@@ -613,16 +613,6 @@ const (
 	// Valid Values:
 	//  - Any string
 	ProxyPassword string = "ProxyPassword"
-
-	// BatchDuration enabled batching of writes when set to non-zero value.
-	//
-	// Required: No
-	//
-	// Default: 0
-	//
-	// ValidValues:
-	//  - Duration string
-	BatchDuration string = "BatchDuration"
 )
 
 const (
@@ -1042,4 +1032,58 @@ const (
 	//  - Y
 	//  - N
 	EnableNextExpectedMsgSeqNum string = "EnableNextExpectedMsgSeqNum"
+
+	// BatchDuration enabled batching of writes when set to non-zero value.
+	//
+	// Required: No
+	//
+	// Default: 0
+	//
+	// ValidValues:
+	//  - Duration string
+	BatchDuration string = "BatchDuration"
+
+	// BatchMaxSize modifies the max size of the buffer written to connection at
+	// once.
+	//
+	// Required: No
+	//
+	// Default: 8192
+	//
+	// ValidValues:
+	//  - A non-negative Integer
+	BatchMaxSize string = "BatchMaxSize"
+
+	// ConnWriteBuffer sets write buffer on connection when set to non-zero value.
+	// Value should be set in bytes.
+	//
+	// Required: No
+	//
+	// Default: 0
+	//
+	// ValidValues:
+	//  - A non-negative Integer
+	ConnWriteBuffer string = "ConnWriteBuffer"
+
+	// ConnReadBuffer sets read buffer on connection when set to non-zero value.
+	// Value should be set in bytes.
+	//
+	// Required: No
+	//
+	// Default: 0
+	//
+	// ValidValues:
+	//  - A non-negative Integer
+	ConnReadBuffer string = "ConnReadBuffer"
+
+	// SetNoDelay calls SetNoDelay on TCP connection when set to true.
+	//
+	// Required: No
+	//
+	// Default: N
+	//
+	// ValidValues:
+	//  - Y
+	//  - N
+	SetNoDelay string = "SetNoDelay"
 )

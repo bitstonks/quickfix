@@ -19,10 +19,12 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/quickfixgo/quickfix/config"
 	"golang.org/x/net/proxy"
 )
 
@@ -205,6 +207,20 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 			netConn = tlsConn
 		}
 
+		if tcpConn, ok := netConn.(*net.TCPConn); ok {
+			if b, err := i.settings.globalSettings.BoolSetting(config.SetNoDelay); err == nil && b {
+				tcpConn.SetNoDelay(true)
+			}
+
+			if n, err := i.settings.globalSettings.IntSetting(config.ConnReadBuffer); err == nil && n > 0 {
+				tcpConn.SetReadBuffer(n)
+			}
+
+			if n, err := i.settings.globalSettings.IntSetting(config.ConnWriteBuffer); err == nil && n > 0 {
+				tcpConn.SetWriteBuffer(n)
+			}
+		}
+
 		msgIn = make(chan fixIn)
 		msgOut = make(chan []byte)
 		if err := session.connect(msgIn, msgOut); err != nil {
@@ -215,8 +231,12 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 		go readLoop(newParser(bufio.NewReader(netConn)), msgIn, session.log)
 		disconnected = make(chan interface{})
 		go func() {
-			if d, err := i.settings.globalSettings.DurationSetting("BatchDuration"); err != nil && d != 0 {
-				batchWriteLoop(netConn, msgOut, session.log)
+			if d, err := i.settings.globalSettings.DurationSetting(config.BatchDuration); err == nil && d != 0 {
+				maxSize := 8192
+				if cfgMaxSize, err := i.settings.globalSettings.IntSetting(config.BatchMaxSize); err == nil && cfgMaxSize > 0 {
+					maxSize = cfgMaxSize
+				}
+				batchWriteLoop(netConn, msgOut, session.log, d, maxSize)
 			} else {
 				writeLoop(netConn, msgOut, session.log)
 			}

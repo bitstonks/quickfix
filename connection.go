@@ -35,11 +35,9 @@ func writeLoop(connection io.Writer, messageOut chan []byte, log Log) {
 	}
 }
 
-func batchWriteLoop(connection io.Writer, messageOut chan []byte, log Log) {
-	bufferSize := 8 * 1024        // 8 kB
-	bufferReadyToSend := 7 * 1024 // 7 kB
-	buffer := bytes.NewBuffer(make([]byte, 0, bufferSize))
-	maxBatchDuration := 100 * time.Millisecond
+func batchWriteLoop(connection io.Writer, messageOut chan []byte, log Log, maxBatchDuration time.Duration, maxBatchSize int) {
+	bufferReadyToSend := maxBatchSize * 9 / 10 // 90% of max size
+	buffer := bytes.NewBuffer(make([]byte, 0, maxBatchSize))
 	tick := time.NewTicker(maxBatchDuration)
 	var channelClosed bool
 
