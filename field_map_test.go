@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFieldMap_Clear(t *testing.T) {
@@ -189,6 +190,53 @@ func TestFieldMap_CopyInto(t *testing.T) {
 	s, err = fMapB.GetString(1)
 	assert.Nil(t, err)
 	assert.Equal(t, "a", s)
+}
+
+func TestFieldMap_CopyIntoWithRepeatingGroup(t *testing.T) {
+	// Build a FieldMap with a repeating group (tag 552 = NoSides,
+	// delimiter tag 54 = Side, plus additional group field tag 1 = Account).
+	var src FieldMap
+	src.init()
+	src.SetString(55, "SYMBOL")
+
+	group := RepeatingGroup{tag: 552, template: GroupTemplate{
+		GroupElement(54),
+		GroupElement(1),
+	}}
+	g := group.Add()
+	g.SetField(Tag(54), FIXString("1"))
+	g.SetField(Tag(1), FIXString("acct-123"))
+	src.SetGroup(&group)
+
+	// Copy into a new FieldMap.
+	var dst FieldMap
+	dst.init()
+	src.CopyInto(&dst)
+
+	// Flat field should be copied.
+	s, err := dst.GetString(55)
+	assert.Nil(t, err)
+	assert.Equal(t, "SYMBOL", s)
+
+	// Repeating group should be fully preserved.
+	var parsed RepeatingGroup
+	parsed.tag = 552
+	parsed.template = GroupTemplate{GroupElement(54), GroupElement(1)}
+	assert.Nil(t, dst.GetGroup(&parsed))
+	assert.Equal(t, 1, parsed.Len())
+
+	var side FIXString
+	require.Nil(t, parsed.groups[0].GetField(Tag(54), &side))
+	assert.Equal(t, "1", string(side))
+
+	var account FIXString
+	require.Nil(t, parsed.groups[0].GetField(Tag(1), &account))
+	assert.Equal(t, "acct-123", string(account))
+
+	// Mutating the source group must not affect the copy.
+	group.Add().SetField(Tag(54), FIXString("2")).SetField(Tag(1), FIXString("acct-456"))
+	src.SetGroup(&group)
+	assert.Equal(t, 1, parsed.Len(), "copy should be independent of source")
 }
 
 func TestFieldMap_Remove(t *testing.T) {
